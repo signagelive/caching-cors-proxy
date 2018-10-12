@@ -7,6 +7,7 @@ const port = process.env.PORT || 8080;
 
 let app = express()
 
+// remove the x-powered by header
 app.set('x-powered-by', false);
 
 // configure the Express API Cache Middleware
@@ -26,6 +27,7 @@ let cache = apicache.options({
     }
 }).middleware
 
+
 // GET apicache index (for the curious)
 app.get('/api/cache/index', function(req, res, next) {
     var ip = (req.headers['x-forwarded-for'] ||
@@ -37,7 +39,7 @@ app.get('/api/cache/index', function(req, res, next) {
 });
 
 // Catch All Requests
-app.all('*', cache("5 minutes"), (req, res) => {
+app.all('*', cache('5 minutes', isDomainCachable), (req, res) => {
     handleRequest(req, res)
 });
 
@@ -109,7 +111,6 @@ function handleRequest(req, res) {
         res.end();
         return;
     }
-
     var location = parseURL(req.url.slice(1));
 
     if (!location) {
@@ -370,17 +371,24 @@ function proxyRequest(req, res, proxy) {
     // Start proxying the request
     proxy.web(req, res, proxyOptions);
 }
-/*
-// Listen on a specific host via the HOST environment variable
-var host = process.env.HOST || 'localhost';
-// Listen on a specific port via the PORT environment variable
-var port = process.env.PORT || 8080;
 
-var cors_proxy = require('./proxy.js');
-cors_proxy.createServer({
-    originWhitelist: [], // Allow all origins
-    requireHeader: ['origin', 'x-requested-with'],
-    removeHeaders: ['cookie', 'cookie2']
-}).listen(port, host, function() {
-    console.log('Running CORS Anywhere on ' + host + ':' + port);
-});*/
+// used by the caching middleware to determine if a responses from a domain should be cached or not.
+function isDomainCachable(req, res) {
+    var finalUrlHeader = res.getHeader('x-final-url');
+    if (finalUrlHeader != null) {
+        var finalUrl = url.parse(res.getHeader('x-final-url'));
+
+        // is the host in the list of domains we should not cache?
+        var dontCacheHosts = require('./dont-cache')
+
+        if (dontCacheHosts.indexOf(finalUrl.host) >= 0) {
+            // in the list of domains to not cache - so don't cache the response
+            return false
+        } else {
+            return true
+        }
+    } else {
+        // cache by default - we know that if the header is not included then this is a cached response from a previous request
+        return true;
+    }
+}
