@@ -38,8 +38,28 @@ app.get('/api/cache/index', function(req, res, next) {
     res.send(apicache.getIndex());
 });
 
-// Catch All Requests
-app.all('*', cache('5 minutes', isDomainCachable), (req, res) => {
+// GET apicache index (for the curious)
+app.get('/api/cache/index', function(req, res, next) {
+    var ip = (req.headers['x-forwarded-for'] ||
+        req.connection.remoteAddress ||
+        req.socket.remoteAddress ||
+        req.connection.socket.remoteAddress).split(",")[0];
+
+    res.send(apicache.getIndex());
+});
+
+// Catch and cache GET Requests
+app.get('*', cache("5 minutes"), (req, res) => {
+    handleRequest(req, res)
+});
+
+// Catch and cache POST Requests
+app.post('*', cache("5 minutes"), (req, res) => {
+    handleRequest(req, res)
+});
+
+// proxy OPTIONS but don't cache
+app.options('*', (req, res) => {
     handleRequest(req, res)
 });
 
