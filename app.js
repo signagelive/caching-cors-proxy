@@ -38,16 +38,6 @@ app.get('/api/cache/index', function(req, res, next) {
     res.send(apicache.getIndex());
 });
 
-// GET apicache index (for the curious)
-app.get('/api/cache/index', function(req, res, next) {
-    var ip = (req.headers['x-forwarded-for'] ||
-        req.connection.remoteAddress ||
-        req.socket.remoteAddress ||
-        req.connection.socket.remoteAddress).split(",")[0];
-
-    res.send(apicache.getIndex());
-});
-
 // Catch and cache GET Requests
 app.get('*', cache("5 minutes"), (req, res) => {
     handleRequest(req, res)
@@ -135,8 +125,8 @@ function handleRequest(req, res) {
 
     if (!location) {
         // Invalid API call. Show how to correctly use the API
-        showUsage(corsAnywhere.helpFile, cors_headers, res);
-        return;
+        res.writeHead(400, 'Url not set', cors_headers);
+        res.end('Bad Request to CORS PROXY');
     }
 
     if (location.host === 'iscorsneeded') {
