@@ -1,6 +1,9 @@
 const express = require('express')
 const apicache = require('apicache')
+const crypto = require('crypto')
 var httpProxy = require('http-proxy');
+var config = require('./config.json')
+
 var url = require('url');
 
 const port = process.env.PORT || 8080;
@@ -18,12 +21,23 @@ let cache = apicache.options({
         include: [], // list status codes to require (e.g. [200] caches ONLY responses with a success/200 code)
     },
     appendKey: function(req, res) {
+        var key = "";
+        var authHeader = req.headers["authorization"];
+        if (authHeader)
+            key += authHeader;
+
         var ip = (req.headers['x-forwarded-for'] ||
             req.connection.remoteAddress ||
             req.socket.remoteAddress ||
             req.connection.socket.remoteAddress).split(",")[0];
 
-        return ip;
+        if (ip)
+            key += ip;
+
+        const secret = config.encryptionKey;
+        const hash = crypto.createHmac('sha256', secret).digest('hex');
+
+        return hash;
     }
 }).middleware
 
@@ -39,12 +53,12 @@ app.get('/api/cache/index', function(req, res, next) {
 });
 
 // Catch and cache GET Requests
-app.get('*', cache("5 minutes"), (req, res) => {
+app.get('*', cache("5 minutes", isDomainCachable), (req, res) => {
     handleRequest(req, res)
 });
 
 // Catch and cache POST Requests
-app.post('*', cache("5 minutes"), (req, res) => {
+app.post('*', cache("5 minutes", isDomainCachable), (req, res) => {
     handleRequest(req, res)
 });
 
@@ -125,7 +139,7 @@ function handleRequest(req, res) {
 
     if (!location) {
         // Invalid API call. Show how to correctly use the API
-        res.writeHead(400, 'Url not set', cors_headers);
+        res.writeHead(200, 'Url not set', cors_headers);
         res.end('Bad Request to CORS PROXY');
     }
 
